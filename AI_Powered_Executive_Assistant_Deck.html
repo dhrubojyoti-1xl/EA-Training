@@ -1,0 +1,831 @@
+<title>The AI-Powered Executive Assistant</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --desk:#DDE1DA; --paper:#F8F8F5; --white:#FFFFFF;
+    --ink:#1B2430; --slate:#5F6B78; --rule:#D9DDD6; --rule-soft:#E8EBE5;
+    --blue:#24456B; --blue-soft:#E4EAF2;
+    --marker:#F2C94C; --marker-soft:#FBEFC4;
+    --ok:#2E7D5B; --ok-soft:#DFF1E7; --warn:#B7791F; --warn-soft:#FBEBCB; --bad:#B4322E; --bad-soft:#F6DDDB;
+    --display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+    --sans:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+    --mono:"IBM Plex Mono",Consolas,"Courier New",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--desk);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.45;overflow:hidden;-webkit-font-smoothing:antialiased}
+  .viewport{position:fixed;inset:0;display:grid;place-items:center;background:var(--desk)}
+  .deck{width:1280px;height:720px;position:relative;background:var(--paper);box-shadow:0 24px 70px rgba(27,36,48,.22);transform-origin:center center;overflow:hidden;
+        background-image:radial-gradient(var(--rule) 1px,transparent 1.2px);background-size:26px 26px}
+  .slide{position:absolute;inset:0;padding:44px 72px 58px;display:none;flex-direction:column;gap:18px}
+  .slide.is-active{display:flex;animation:fade .22s ease-out}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  @media (prefers-reduced-motion:reduce){.slide.is-active{animation:none}}
+
+  /* chrome */
+  .chrome{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--slate);font-weight:500}
+  .chrome .tab{display:flex;align-items:center;gap:10px}
+  .chrome .tab i{width:10px;height:10px;background:var(--blue);display:inline-block}
+  .chrome .idx{font-variant-numeric:tabular-nums}
+  .foot{position:absolute;left:72px;bottom:20px;font-size:11.5px;letter-spacing:.08em;color:var(--slate);text-transform:uppercase}
+  .foot b{color:var(--ink);font-weight:600}
+  .nav{position:absolute;right:64px;bottom:14px;display:flex;gap:6px}
+  .nav button{width:36px;height:32px;border:1px solid var(--rule);background:var(--white);color:var(--ink);cursor:pointer;display:grid;place-items:center;padding:0}
+  .nav button:hover{background:var(--blue-soft)}
+  .nav button:focus-visible,.seg button:focus-visible,.prompt button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+  .seg{position:absolute;left:0;right:0;bottom:0;height:6px;display:flex;gap:2px;background:var(--rule-soft)}
+  .seg button{flex:1;border:0;padding:0;background:transparent;cursor:pointer}
+  .seg button.done{background:var(--blue)}
+  .seg button.now{background:var(--marker)}
+
+  /* type */
+  .head{display:flex;flex-direction:column;gap:8px}
+  h1{font-family:var(--display);font-weight:800;font-size:66px;line-height:.98;letter-spacing:-.025em;margin:0;text-wrap:balance;max-width:14ch}
+  h2{font-family:var(--display);font-weight:800;font-size:40px;line-height:1.04;letter-spacing:-.022em;margin:0;text-wrap:balance;max-width:24ch}
+  h3{font-family:var(--display);font-weight:700;font-size:20px;line-height:1.15;margin:0;letter-spacing:-.01em}
+  h4{font-family:var(--display);font-weight:700;font-size:16.5px;line-height:1.2;margin:0}
+  p{margin:0}
+  .lede{font-size:19px;color:var(--slate);max-width:56ch;line-height:1.5}
+  .jd{font-size:13.5px;color:var(--slate);border-left:3px solid var(--marker);padding:2px 0 2px 12px;max-width:110ch}
+  .jd b{color:var(--ink);font-weight:600;font-style:normal}
+  .hl{background:linear-gradient(transparent 38%,var(--marker) 38%,var(--marker) 92%,transparent 92%);padding:0 .12em;margin:0 -.12em}
+  .eyebrow{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--slate);font-weight:600}
+  .small{font-size:13.5px;color:var(--slate)}
+  .note{font-size:14px;color:var(--ink);background:var(--marker-soft);border-left:3px solid var(--marker);padding:10px 14px}
+  .note b{font-weight:600}
+  .rulebox{font-size:14.5px;border:1px solid var(--rule);background:var(--white);padding:12px 14px}
+  .rulebox b{font-weight:600}
+
+  /* layout */
+  .cols{display:grid;grid-template-columns:5fr 7fr;gap:40px;flex:1;min-height:0;align-content:start}
+  .cols.even{grid-template-columns:1fr 1fr}
+  .cols.wide-left{grid-template-columns:7fr 5fr}
+  .stack{display:flex;flex-direction:column;gap:14px;min-height:0}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  .cards{display:grid;gap:10px}
+  .card{background:var(--white);border:1px solid var(--rule);padding:12px 14px;display:flex;flex-direction:column;gap:4px}
+  .card p{font-size:13.5px;color:var(--slate);line-height:1.45}
+  .card .tool{display:flex;align-items:baseline;gap:8px}
+  .card .tool small{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);font-weight:600}
+  .steps{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+  .steps li{display:grid;grid-template-columns:30px 1fr;gap:10px;font-size:14.5px;line-height:1.45}
+  .steps li b.n{font-family:var(--display);font-weight:800;font-size:20px;color:var(--blue);line-height:1.1}
+  .steps li b{font-weight:600}
+  .list{margin:0;padding-left:18px;display:grid;gap:7px;font-size:14.5px}
+  .list li::marker{color:var(--blue)}
+  .list b{font-weight:600}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{font-size:12.5px;padding:3px 9px;border:1px solid var(--rule);background:var(--white);white-space:nowrap}
+  .chip.ok{background:var(--ok-soft);border-color:transparent;color:var(--ok)}
+  .chip.warn{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+  .chip.bad{background:var(--bad-soft);border-color:transparent;color:var(--bad)}
+  .chip.blue{background:var(--blue-soft);border-color:transparent;color:var(--blue);font-weight:500}
+
+  /* prompt block */
+  .prompt{background:var(--ink);color:#E9EEF3;font-family:var(--mono);font-size:13px;line-height:1.55;padding:20px 18px 16px;position:relative;margin-top:10px}
+  .prompt .lbl{position:absolute;top:-10px;left:14px;background:var(--marker);color:var(--ink);font-family:var(--sans);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;padding:2px 8px;font-weight:600}
+  .prompt .txt{white-space:pre-wrap;margin:0}
+  .prompt button{position:absolute;top:8px;right:8px;background:transparent;border:1px solid rgba(233,238,243,.35);color:#E9EEF3;font-family:var(--sans);font-size:11.5px;padding:3px 9px;cursor:pointer}
+  .prompt button:hover{background:rgba(233,238,243,.12)}
+
+  /* artefact mocks */
+  .doc{background:var(--white);border:1px solid var(--rule);padding:14px 16px;font-size:13.5px;display:flex;flex-direction:column;gap:8px}
+  .doc .dh{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid var(--rule);padding-bottom:8px}
+  .doc .dh b{font-family:var(--display);font-size:15px;font-weight:700}
+  .doc .dh span{font-family:var(--mono);font-size:11.5px;color:var(--slate)}
+  table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+  th{text-align:left;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--slate);font-weight:600;padding:4px 8px 6px 0;border-bottom:1px solid var(--rule)}
+  td{padding:6px 8px 6px 0;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  .mono{font-family:var(--mono);font-size:12.5px}
+  .timeline{display:grid;gap:0}
+  .timeline li{display:grid;grid-template-columns:56px 1fr;gap:12px;font-size:14px;padding:7px 0;border-bottom:1px solid var(--rule-soft)}
+  .timeline li:last-child{border-bottom:0}
+  .timeline .t{font-family:var(--mono);font-size:12.5px;color:var(--blue);font-weight:500;padding-top:2px}
+  .timeline b{font-weight:600}
+  .pill-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .pill-row .card{gap:6px}
+  .stat{display:flex;flex-direction:column;gap:2px}
+  .stat b{font-family:var(--display);font-size:38px;font-weight:800;letter-spacing:-.02em;line-height:1;color:var(--blue)}
+  .stat span{font-size:13px;color:var(--slate)}
+  .kbd{font-family:var(--mono);font-size:11.5px;border:1px solid var(--rule);background:var(--white);padding:1px 6px}
+  .pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .pillar{background:var(--white);border:1px solid var(--rule);padding:14px 16px;display:flex;flex-direction:column;gap:6px;min-height:150px}
+  .pillar .num{font-family:var(--display);font-weight:800;font-size:26px;color:var(--blue);line-height:1}
+  .pillar p{font-size:13.5px;color:var(--slate)}
+  .pillar .goto{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);font-weight:600;margin-top:auto}
+  .ref{width:100%}
+  .ref td:first-child{font-weight:600;width:24%}
+  .ref td:nth-child(2){width:36%}
+  .ref td:last-child{font-family:var(--mono);font-size:12px;color:var(--slate)}
+  .close{font-family:var(--display);font-weight:800;font-size:30px;letter-spacing:-.02em;line-height:1.1}
+
+  @media print{
+    body{overflow:visible;background:#fff}
+    .viewport{position:static;display:block}
+    .deck{transform:none!important;box-shadow:none;margin:0 auto;page-break-after:always;break-after:page}
+    .slide{display:flex!important;position:relative;height:720px;page-break-after:always;break-after:page}
+    .nav,.seg{display:none}
+  }
+</style>
+
+<div class="viewport">
+<div class="deck" id="deck">
+
+<!-- 1 -->
+<section class="slide is-active" id="s1" aria-label="Slide 1 of 24">
+  <header class="chrome"><span class="tab"><i></i>A practical playbook</span><span class="idx">01 / 24</span></header>
+  <div class="cols" style="align-items:center">
+    <div class="stack" style="gap:22px">
+      <h1>The <span class="hl">AI-Powered</span> Executive Assistant</h1>
+      <p class="lede">The best AI tools for every part of your role — and exactly how to use them, every working day.</p>
+      <p class="small">Built line by line from the Executive Assistant job description. Keys: <span class="kbd">→</span> next · <span class="kbd">←</span> back · <span class="kbd">F</span> fullscreen</p>
+    </div>
+    <div class="grid3">
+      <div class="card"><div class="stat"><b>6</b><span>responsibility areas from the JD, each with tools, a workflow and a prompt</span></div></div>
+      <div class="card"><div class="stat"><b>5</b><span>tools you open daily — everything else is situational</span></div></div>
+      <div class="card"><div class="stat"><b>18</b><span>copy-ready prompts written for an EA's real tasks</span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="slide" id="s2" aria-label="Slide 2 of 24">
+  <header class="chrome"><span class="tab"><i></i>What this deck gives you</span><span class="idx">02 / 24</span></header>
+  <div class="head">
+    <h2>Less busywork. <span class="hl">More judgement.</span></h2>
+    <p class="lede">AI is good at first drafts, summaries, sorting and reminders. You are good at knowing what matters, who to trust, and when to say no. This deck puts the two together.</p>
+  </div>
+  <div class="grid3">
+    <div class="card"><h4>Every JD line, covered</h4><p>Slides 6–22 walk through all six responsibility areas and the skills list — with the tool to use, a step-by-step workflow, and a prompt you can copy.</p></div>
+    <div class="card"><h4>A daily stack of five</h4><p>You don't need forty apps. Five tools you open every day (slide 4) and a short menu of situational ones, each introduced where it earns its place.</p></div>
+    <div class="card"><h4>Rules that protect you</h4><p>What never goes into an AI tool, how to keep leadership's confidence, and how to stay the most trusted person in the room (slide 21).</p></div>
+  </div>
+  <div class="note"><b>The principle behind every slide:</b> AI drafts, you decide. Nothing reaches leadership, a team or a client until you have read it, checked the names, dates and numbers, and made it yours.</div>
+</section>
+
+<!-- 3 -->
+<section class="slide" id="s3" aria-label="Slide 3 of 24">
+  <header class="chrome"><span class="tab"><i></i>The role at a glance</span><span class="idx">03 / 24</span></header>
+  <div class="head">
+    <h2>Your role has six jobs. Each one has an <span class="hl">AI advantage.</span></h2>
+    <p class="jd">From your JD — <b>“support senior leadership and ensure smooth day-to-day operations … act as a strong coordination bridge between teams.”</b></p>
+  </div>
+  <div class="pillars">
+    <div class="pillar"><span class="num">1</span><h4>Implementation &amp; Process Development</h4><p>Software rollouts, guiding teams on AI tools, SOPs, policies, training materials and videos, assessments.</p><span class="goto">Slides 6–9</span></div>
+    <div class="pillar"><span class="num">2</span><h4>Executive &amp; Administrative Support</h4><p>Calendars and follow-ups, Zoom meetings and minutes, documents, presentations, reports, professional email.</p><span class="goto">Slides 10–13</span></div>
+    <div class="pillar"><span class="num">3</span><h4>Coordination &amp; Content Support</h4><p>HR, Admin, SOP, Development, Testing, Content, Design and Video teams; schedules, approvals, dependencies.</p><span class="goto">Slides 14–16</span></div>
+    <div class="pillar"><span class="num">4</span><h4>Operations &amp; Process Support</h4><p>Expenses, invoices and budgets; digital filing and documentation; research, data collection and reports.</p><span class="goto">Slides 17–19</span></div>
+    <div class="pillar"><span class="num">5</span><h4>Problem Solving &amp; Ownership</h4><p>Spot gaps and delays early, propose practical solutions, work independently, prioritise and meet deadlines.</p><span class="goto">Slide 20</span></div>
+    <div class="pillar"><span class="num">6</span><h4>Confidentiality &amp; Professionalism</h4><p>Sensitive information handled with integrity; representing leadership in every internal and external message.</p><span class="goto">Slide 21</span></div>
+  </div>
+</section>
+
+<!-- 4 -->
+<section class="slide" id="s4" aria-label="Slide 4 of 24">
+  <header class="chrome"><span class="tab"><i></i>Your daily stack</span><span class="idx">04 / 24</span></header>
+  <div class="head">
+    <h2>Five tools you open every day. <span class="hl">Not fifty.</span></h2>
+    <p class="jd">From your JD — <b>“Proficiency in Google Workspace … Familiarity with AI tools (ChatGPT, Claude, etc.) … Experience using scheduling tools, Zoom, and task-tracking platforms.”</b></p>
+  </div>
+  <div class="cols wide-left">
+    <div class="cards">
+      <div class="card"><div class="tool"><h4>Gemini in Google Workspace</h4><small>Gmail · Docs · Sheets · Slides · Calendar</small></div><p>Lives inside the tools you already use. Best for drafting, summarising and formulas where the work already is.</p></div>
+      <div class="card"><div class="tool"><h4>Claude</h4><small>Long documents · careful writing · analysis</small></div><p>Best for SOPs, policies, briefs, minutes from transcripts and thinking a problem through. Keep templates and tone samples in a Project so drafts start in your voice.</p></div>
+      <div class="card"><div class="tool"><h4>ChatGPT</h4><small>Quick tasks · voice · brainstorming</small></div><p>Fast everyday questions, rehearsing a difficult call in voice mode, quick images and lists on the go.</p></div>
+      <div class="card"><div class="tool"><h4>Zoom AI Companion</h4><small>Meetings</small></div><p>Summaries, action items and “what did I miss?” inside the meetings you already run — your first draft of the minutes.</p></div>
+      <div class="card"><div class="tool"><h4>NotebookLM</h4><small>Research grounded in your own files</small></div><p>Upload manuals, reports and policies; ask questions; every answer cites the page. Best for learning a tool fast and preparing training.</p></div>
+    </div>
+    <div class="stack">
+      <div class="rulebox"><b>Situational tools</b> — introduced on the slide where they earn their place:<br><br>
+        <div class="chips"><span class="chip">Scribe / Tango</span><span class="chip">Loom</span><span class="chip">Descript</span><span class="chip">HeyGen / Synthesia</span><span class="chip">Canva</span><span class="chip">Gamma</span><span class="chip">Perplexity</span><span class="chip">Reclaim / Clockwise</span><span class="chip">Calendly</span><span class="chip">ClickUp / Asana / Notion</span><span class="chip">Zapier / Make</span><span class="chip">Grammarly</span><span class="chip">Zoho Expense</span></div></div>
+      <div class="note"><b>Company accounts only.</b> Use the Workspace, Team or Enterprise versions your organisation approves — they keep company data out of model training. Consumer accounts are for nothing confidential (slide 21).</div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 -->
+<section class="slide" id="s5" aria-label="Slide 5 of 24">
+  <header class="chrome"><span class="tab"><i></i>The one skill that unlocks all of them</span><span class="idx">05 / 24</span></header>
+  <div class="head">
+    <h2>Brief the AI the way you'd brief a <span class="hl">new colleague.</span></h2>
+    <p class="lede">Four parts, every time: who it is, what's going on, what you need, and what the output should look like.</p>
+  </div>
+  <div class="cols even">
+    <div class="stack">
+      <ol class="steps">
+        <li><b class="n">R</b><span><b>Role</b> — “You are an executive assistant to a CEO.”</span></li>
+        <li><b class="n">C</b><span><b>Context</b> — what happened, who's involved, what's at stake, what's been tried.</span></li>
+        <li><b class="n">T</b><span><b>Task</b> — the one thing you want back.</span></li>
+        <li><b class="n">F</b><span><b>Format</b> — length, structure, tone, language (“British English, under 120 words, subject line included”).</span></li>
+      </ol>
+      <div class="rulebox"><b>Three habits that double the quality:</b> paste one example of your own writing so it matches your voice · ask for three versions and pick the best · never send the first draft unread.</div>
+    </div>
+    <div class="stack">
+      <div class="card"><h4>Weak brief</h4><p class="mono">Write an email to the vendor.</p></div>
+      <div class="prompt"><span class="lbl">Strong brief</span><button type="button">Copy</button><p class="txt">You are an executive assistant to a CEO. Context: the vendor missed the 15 September delivery for the office fit-out; this is their second delay. Task: write a firm but courteous email asking for a revised date within 48 hours and a written explanation. Format: under 120 words, subject line included, British English, sign off as “Office of the CEO”.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 -->
+<section class="slide" id="s6" aria-label="Slide 6 of 24">
+  <header class="chrome"><span class="tab"><i></i>Pillar 1 · Implementation &amp; Process Development</span><span class="idx">06 / 24</span></header>
+  <div class="head">
+    <h2>Become the person who knows <span class="hl">how everything works.</span></h2>
+    <p class="jd">From your JD — <b>“Understand software and tools used within the organisation and support their effective implementation across teams. Learn and explore relevant AI tools and guide teams on their effective usage.”</b></p>
+  </div>
+  <div class="cols">
+    <ol class="steps">
+      <li><b class="n">1</b><span><b>Learn any tool in an hour.</b> Drop its help pages or PDF manual into NotebookLM (or Claude) and ask for a 10-step explanation plus the five mistakes beginners make. Then do the steps yourself once.</span></li>
+      <li><b class="n">2</b><span><b>Roll it out properly.</b> Claude drafts the rollout plan: who, when, training format, a one-page quick-start, and how you'll know it worked.</span></li>
+      <li><b class="n">3</b><span><b>Be the AI guide.</b> Keep a one-page “approved AI tools and rules” document, run 20-minute Loom demos per team, and collect the best prompts in a shared prompt library (a Google Doc is enough).</span></li>
+    </ol>
+    <div class="stack">
+      <div class="prompt"><span class="lbl">Copy this prompt</span><button type="button">Copy</button><p class="txt">I'm rolling out [tool name] to the [Content Writing] team — 6 people, fully remote, mixed confidence with new software. Draft a 2-week rollout plan with: two 30-minute training sessions (agenda for each), a one-page quick-start guide, the three problems people will hit first and how to fix them, and how we will measure that the rollout worked after 30 days.</p></div>
+      <div class="note"><b>Measure adoption, not enthusiasm:</b> after 30 days, count who uses the tool weekly, the time saved on one task, and the questions still coming to you.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 -->
+<section class="slide" id="s7" aria-label="Slide 7 of 24">
+  <header class="chrome"><span class="tab"><i></i>Pillar 1 · Implementation &amp; Process Development</span><span class="idx">07 / 24</span></header>
+  <div class="head">
+    <h2>SOPs in an afternoon, <span class="hl">not a week.</span></h2>
+    <p class="jd">From your JD — <b>“Develop, document, and maintain Standard Operating Procedures (SOPs) for various processes.”</b></p>
+  </div>
+  <div class="cols">
+    <div class="stack">
+      <ol class="steps">
+        <li><b class="n">1</b><span><b>Capture.</b> Do the process once with Scribe or Tango running — they turn your clicks into a step-by-step guide with screenshots automatically.</span></li>
+        <li><b class="n">2</b><span><b>Structure.</b> Paste the rough steps into Claude with the SOP template below. One action per step, plain English.</span></li>
+        <li><b class="n">3</b><span><b>Maintain.</b> Keep every SOP in Google Docs (version history on), an ID and review date in the header, and an SOP register in Sheets: ID · owner · last reviewed · next review.</span></li>
+      </ol>
+      <div class="doc">
+        <div class="dh"><b>Content approval workflow</b><span>SOP-CNT-014 · v2.1</span></div>
+        <div class="small">Owner: Executive Assistant · Reviewed 03 Sep 2026 · Next review 03 Dec 2026 · Applies to: Content, Design, Video</div>
+      </div>
+    </div>
+    <div class="prompt"><span class="lbl">Copy this prompt</span><button type="button">Copy</button><p class="txt">Turn these rough notes into a Standard Operating Procedure using exactly this structure:
+1. Purpose (two lines)
+2. Scope — who follows it and when
+3. Owner
+4. Trigger — what starts the process
+5. Step-by-step — numbered, one action per step, name the tool used in each
+6. Quality checks — what “done correctly” looks like
+7. Common exceptions and what to do
+8. Version, review date, related SOPs
+Plain English, no jargon, written for someone doing this for the first time.
+Notes: [paste your Scribe export or rough steps]</p></div>
+  </div>
+</section>
+
+<!-- 8 -->
+<section class="slide" id="s8" aria-label="Slide 8 of 24">
+  <header class="chrome"><span class="tab"><i></i>Pillar 1 · Implementation &amp; Process Development</span><span class="idx">08 / 24</span></header>
+  <div class="head">
+    <h2>Training videos <span class="hl">without a video team.</span></h2>
+    <p class="jd">From your JD — <b>“Prepare and maintain process documents, policies, rules, regulations, and training materials, including videos.”</b></p>
+  </div>
+  <div class="cols wide-left">
+    <div class="cards">
+      <div class="card"><div class="tool"><h4>Loom</h4><small>Screen + voice · 3-minute how-tos</small></div><p>Record your screen while you do the task; Loom writes the title, summary and chapters. Best for “how to do X” — the video most teams actually need.</p></div>
+      <div class="card"><div class="tool"><h4>Descript</h4><small>Edit video by editing text</small></div><p>Delete a sentence from the transcript and it's cut from the video. Removes filler words, adds captions, exports clean.</p></div>
+      <div class="card"><div class="tool"><h4>HeyGen / Synthesia</h4><small>Script → presenter video</small></div><p>Paste a script, choose an avatar, get a polished explainer in minutes — and in other languages. Best for policies and onboarding modules.</p></div>
+      <div class="card"><div class="tool"><h4>Canva + Gamma</h4><small>Visuals and decks from an outline</small></div><p>Canva for one-pagers, posters and thumbnails; Gamma turns a text outline into a presentable deck you then tidy.</p></div>
+    </div>
+    <div class="stack">
+      <div class="rulebox"><b>One video, one process, under five minutes.</b> Open with what the viewer will be able to do; end with where the SOP lives. Re-record when the process changes — don't patch.</div>
+      <div class="rulebox"><b>Policies, rules and regulations:</b> Claude drafts from your bullet points → Gemini in Docs formats and adds a summary box → leadership approves → filed in the Policies folder with a version number and an “effective from” date.</div>
+      <div class="prompt"><span class="lbl">Copy this prompt</span><button type="button">Copy</button><p class="txt">Write a 3-minute training video script for [process]. Structure: what you'll be able to do (10 seconds), the steps in order with what's on screen for each, two common mistakes, and a closing line pointing to the SOP. Conversational, second person, no jargon.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 -->
+<section class="slide" id="s9" aria-label="Slide 9 of 24">
+  <header class="chrome"><span class="tab"><i></i>Pillar 1 · Implementation &amp; Process Development</span><span class="idx">09 / 24</span></header>
+  <div class="head">
+    <h2>Ask better questions. <span class="hl">Read the answers faster.</span></h2>
+    <p class="jd">From your JD — <b>“Conduct assessments and evaluations within the organisation.”</b></p>
+  </div>
+  <div class="cols">
+    <ol class="steps">
+      <li><b class="n">1</b><span><b>Design.</b> Claude drafts the assessment from the goal — questions, an answer key and a scoring rubric — in one pass.</span></li>
+      <li><b class="n">2</b><span><b>Run.</b> Google Forms in quiz mode scores automatically; responses land in a Sheet.</span></li>
+      <li><b class="n">3</b><span><b>Read.</b> Gemini in Sheets: “Summarise results by team. Which question was missed most? What should we retrain?”</span></li>
+      <li><b class="n">4</b><span><b>Report.</b> One page for leadership: what we measured, what we found, what we'll do next.</span></li>
+    </ol>
+    <div class="stack">
+      <div class="prompt"><span class="lbl">Copy this prompt</span><button type="button">Copy</button><p class="txt">Create a 10-question assessment to check that the Content team understands the new approval SOP (paste SOP). Mix: 7 multiple-choice, 2 true/false, 1 short scenario question. Include the answer key, one line explaining each correct answer, and a scoring rubric (pass = 8/10). Keep language simple.</p></div>
+      <div class="doc">
+        <div class="dh"><b>Tool / process evaluation scorecard</b><span>1 – 5 scale</span></div>
+        <table><tr><th>Measure</th><th>Question to ask</th></tr>
+          <tr><td>Adoption</td><td>Who uses it every week?</td></tr>
+          <tr><td>Time saved</td><td>Minutes per task, before and after</td></tr>
+          <tr><td>Errors</td><td>Fewer rework requests?</td></tr>
+          <tr><td>Satisfaction</td><td>Would the team keep it?</td></tr></table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 -->
+<section class="slide" id="s10" aria-label="Slide 10 of 24">
+  <header class="chrome"><span class="tab"><i></i>Pillar 2 · Executive &amp; Administrative Support</span><span class="idx">10 / 24</span></header>
+  <div class="head">
+    <h2>Run the calendar like <span class="hl">air-traffic control.</span></h2>
+    <p class="jd">From your JD — <b>“Manage and maintain executive calendars, schedules, meetings, and follow-ups.”</b></p>
+  </div>
+  <div class="cols wide-left">
+    <div class="cards">
+      <div class="card"><div class="tool"><h4>Google Calendar + Gemini</h4><small>Daily</small></div><p>“Find a 45-minute slot for A, B and C next week, mornings IST.” Appointment schedules for anyone who needs to book the executive.</p></div>
+      <div class="card"><div class="tool"><h4>Reclaim.ai or Clockwise</h4><small>Automatic protection</small></div><p>Auto-holds focus time, moves flexible tasks when meetings land, adds buffers between calls. Set once, review weekly.</p></div>
+      <div class="card"><div class="tool"><h4>Calendly</h4><small>External booking</small></div><p>Booking pages with rules — 30-minute slots, 24-hour notice, buffers — so external requests never need five emails.</p></div>
+      <div class="card"><div class="tool"><h4>Time zones</h4><small>Remote teams</small></div><p>Add a world-clock row (IST · GST · GMT) to Calendar; state both times in every invite: “15:00 IST / 13:30 GST”.</p></div>
+    </div>
+    <div class="stack">
+      <div class="rulebox"><b>The follow-up system:</b> every meeting produces an action list → each action gets a next-day reminder → Monday, a five-minute “open follow-ups” review with the executive. Nothing is ever chased from memory.</div>
+      <div class="prompt"><span class="lbl">Copy this prompt</span><button type="button">Copy</button><p class="txt">Here is my executive's calendar for next week (paste). Flag: back-to-back blocks longer than 3 hours, meetings with no agenda, travel or time-zone conflicts, and anything that could be handled asynchronously. Suggest a cleaner version with two protected 90-minute focus blocks.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 11 -->
+<section class="slide" id="s11" aria-label="Slide 11 of 24">
+  <header class="chrome"><span class="tab"><i></i>Pillar 2 · Executive &amp; Administrative Support</span><span class="idx">11 / 24</span></header>
+  <div class="head">
+    <h2>Minutes circulated <span class="hl">within 15 minutes</span> of the call.</h2>
+    <p class="jd">From your JD — <b>“Coordinate and attend Zoom/online meetings; take minutes and circulate action points.”</b></p>
+  </div>
+  <div class="cols">
+    <div class="stack">
+      <ol class="steps">
+        <li><b class="n">1</b><span><b>Before.</b> Agenda in the invite — Gemini drafts it from the meeting title and last time's minutes.</span></li>
+        <li><b class="n">2</b><span><b>During.</b> Zoom AI Companion on (with consent): live summary, “what did I miss?”, action-item detection. You listen for what was <i>decided</i> and who <i>owns</i> it.</span></li>
+        <li><b class="n">3</b><span><b>After.</b> Transcript → Claude with your template → you correct names and decisions → circulate from Gmail. Alternatives: Fathom, Otter.ai, Fireflies.</span></li>
+      </ol>
+      <div class="doc">
+        <div class="dh"><b>Leadership sync — minutes</b><span>09 Sep 2026 · 30 min</span></div>
+        <table><tr><th>Owner</th><th>Action</th><th>Due</th></tr>
+          <tr><td>Ravi</td><td>Revised vendor quote for fit-out</td><td>12 Sep</td></tr>
+          <tr><td>Priya</td><td>Draft remote-work policy v1</td><td>15 Sep</td></tr>
+          <tr><td>EA</td><td>Book Q4 planning offsite</td><td>18 Sep</td></tr></table>
+      </div>
+    </div>
+    <div class="prompt"><span class="lbl">Copy this prompt</span><button type="button">Copy</button><p class="txt">You are my executive assistant. From this meeting transcript write minutes with:
+1. A three-line summary
+2. Decisions made
+3. Action items as a table: owner, action, due date
+4. Open questions
+5. Date of next meeting
+Under 250 words. Use people's names exactly as they appear in the transcript. If an owner or date is unclear, mark it “TBC” rather than guessing.
+Transcript: [paste]</p></div>
+  </div>
+</section>
+
+<!-- 12 -->
+<section class="slide" id="s12" aria-label="Slide 12 of 24">
+  <header class="chrome"><span class="tab"><i></i>Pillar 2 · Executive &amp; Administrative Support</span><span class="idx">12 / 24</span></header>
+  <div class="head">
+    <h2>First drafts in minutes. <span class="hl">Your judgement on top.</span></h2>
+    <p class="jd">From your JD — <b>“Prepare documents, presentations, reports, and summaries as required.”</b></p>
+  </div>
+  <div class="cols wide-left">
+    <div class="cards">
+      <div class="card"><div class="tool"><h4>Documents</h4><small>Claude · Docs + Gemini</small></div><p>Briefs, proposals, policies. Give Claude your best previous document as a style example and it will match the house voice.</p></div>
+      <div class="card"><div class="tool"><h4>Presentations</h4><small>Claude → Gamma or Slides + Gemini</small></div><p>Outline the story first (one line per slide), then let the tool build. You fix the narrative and every number.</p></div>
+      <div class="card"><div class="tool"><h4>Reports</h4><small>Sheets + Gemini · Claude</small></div><p>Gemini for the figures and charts; Claude for the narrative: what changed, why, what we recommend.</p></div>
+      <div class="card"><div class="tool"><h4>Summaries</h4><small>NotebookLM · Claude</small></div><p>NotebookLM for 100-page documents with page citations; Claude for “summarise for the CEO in five bullets, with the one decision needed”.</p></div>
+    </div>
+    <div class="stack">
+      <div class="rulebox"><b>Executive summary rule:</b> the first three lines answer “what do you need from me?” Everything else is supporting detail.</div>
+      <div class="prompt"><span class="lbl">Copy this prompt</span><button type="button">Copy</button><p class="txt">Summarise this document for a CEO who has 60 seconds:
+1. The situation in one line
+2. Three key points
+3. The decision or approval needed from them
+4. The deadline and what happens if we miss it
+Plain English, no jargon. Document: [paste]</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 13 -->
+<section class="slide" id="s13" aria-label="Slide 13 of 24">
+  <header class="chrome"><span class="tab"><i></i>Pillar 2 · Executive &amp; Administrative Support</span><span class="idx">13 / 24</span></header>
+  <div class="head">
+    <h2>An inbox that runs on a routine, <span class="hl">not adrenaline.</span></h2>
+    <p class="jd">From your JD — <b>“Handle professional email communication, internal coordination, and follow-ups.”</b></p>
+  </div>
+  <div class="cols">
+    <div class="stack">
+      <ol class="steps">
+        <li><b class="n">1</b><span><b>Three passes a day</b> — start, after lunch, end. Not all day.</span></li>
+        <li><b class="n">2</b><span><b>Triage</b> with Gemini's inbox summary into three labels: <span class="chip blue">Action today</span> <span class="chip blue">Waiting on</span> <span class="chip blue">Reference</span></span></li>
+        <li><b class="n">3</b><span><b>Draft</b> replies with Gemini “Help me write” or Claude for anything sensitive (“make this firmer without being rude”). Grammarly for the final polish.</span></li>
+        <li><b class="n">4</b><span><b>Review, then send.</b> Names, dates, numbers, tone — checked twice. Never send an AI draft unread.</span></li>
+      </ol>
+      <div class="rulebox"><b>Templates worth keeping ready:</b> polite decline · reschedule · second follow-up · vendor chaser · escalation to leadership · thank-you after a meeting.</div>
+    </div>
+    <div class="stack">
+      <div class="prompt"><span class="lbl">Copy this prompt</span><button type="button">Copy</button><p class="txt">Rewrite this email so it is clear, warm and under 100 words. Keep every fact. Put the ask and the deadline in the first two lines. British English, professional but human. Give me two versions: one for an internal colleague, one for an external partner. Email: [paste]</p></div>
+      <div class="prompt"><span class="lbl">Second follow-up</span><button type="button">Copy</button><p class="txt">Write a second follow-up to [name] about [request], sent 5 working days after the first. Friendly, brief, makes it easy to reply with one line, and offers a specific time to talk. Under 70 words.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 14 -->
+<section class="slide" id="s14" aria-label="Slide 14 of 24">
+  <header class="chrome"><span class="tab"><i></i>Pillar 3 · Coordination &amp; Content Support</span><span class="idx">14 / 24</span></header>
+  <div class="head">
+    <h2>Eight teams. <span class="hl">One board</span> everyone can see.</h2>
+    <p class="jd">From your JD — <b>“Coordinate with internal teams such as HR, Admin, SOP, Development, Testing, Content Writing, Graphic Design, and Video Editing to ensure timely delivery of tasks.”</b></p>
+  </div>
+  <div class="cols">
+    <div class="stack">
+      <div class="rulebox"><b>Pick one task-tracking platform and use it hard:</b> ClickUp, Asana or Notion (Trello for simple boards). Their AI writes status summaries, splits a brief into subtasks and drafts updates. One workspace, one project per team, every task with an owner, a due date, a status and a link to the files.</div>
+      <div class="rulebox"><b>Weekly rhythm:</b> Monday — 15 minutes with each team lead to set the week · Wednesday — check the board, chase what's slipping · Friday — status to leadership (slide 16). You are the only person who moves a task to Done.</div>
+    </div>
+    <div class="stack">
+      <div class="doc">
+        <div class="dh"><b>Weekly delivery board</b><span>example · week 37</span></div>
+        <div class="pill-row">
+          <div class="card"><h4>HR</h4><span class="chip ok">On track</span></div>
+          <div class="card"><h4>Admin</h4><span class="chip ok">On track</span></div>
+          <div class="card"><h4>SOP</h4><span class="chip warn">At risk</span></div>
+          <div class="card"><h4>Development</h4><span class="chip ok">On track</span></div>
+          <div class="card"><h4>Testing</h4><span class="chip bad">Blocked</span></div>
+          <div class="card"><h4>Content Writing</h4><span class="chip ok">On track</span></div>
+          <div class="card"><h4>Graphic Design</h4><span class="chip warn">At risk</span></div>
+          <div class="card"><h4>Video Editing</h4><span class="chip ok">On track</span></div>
+        </div>
+      </div>
+      <div class="prompt"><span class="lbl">Copy this prompt</span><button type="button">Copy</button><p class="txt">Here are this week's task updates from eight teams (paste the export). Write a status report: for each team — done, in progress, at risk (with the reason and what they need), blocked (with who can unblock it). Then list the top three risks for leadership in one line each.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 15 -->
+<section class="slide" id="s15" aria-label="Slide 15 of 24">
+  <header class="chrome"><span class="tab"><i></i>Pillar 3 · Coordination &amp; Content Support</span><span class="idx">15 / 24</span></header>
+  <div class="head">
+    <h2>Know what's blocking what — <span class="hl">before anyone asks.</span></h2>
+    <p class="jd">From your JD — <b>“Track content schedules, approvals, and dependencies across teams.”</b></p>
+  </div>
+  <div class="cols">
+    <div class="stack">
+      <div class="doc">
+        <div class="dh"><b>Content pipeline</b><span>owner · turnaround</span></div>
+        <table><tr><th>Stage</th><th>Owner</th><th>SLA</th></tr>
+          <tr><td>Brief</td><td>EA</td><td>same day</td></tr>
+          <tr><td>Writing</td><td>Content Writing</td><td>2 days</td></tr>
+          <tr><td>Design</td><td>Graphic Design</td><td>2 days</td></tr>
+          <tr><td>Video</td><td>Video Editing</td><td>3 days</td></tr>
+          <tr><td>Review</td><td>EA</td><td>1 day</td></tr>
+          <tr><td>Approval</td><td>Leadership</td><td>1 day</td></tr></table>
+      </div>
+      <div class="rulebox"><b>Dependency rule:</b> a task shows what it's <i>waiting on</i>, and can't start until that's done. If it isn't visible on the board, it doesn't exist.</div>
+    </div>
+    <div class="stack">
+      <ul class="list">
+        <li><b>Automate the chasing.</b> Zapier, Make or Google Apps Script: status becomes “Ready for approval” → the approver gets an email; T-1 day reminder before every due date; overdue → owner and EA pinged.</li>
+        <li><b>Keep an approvals log.</b> Who approved what, when, in which version — a Sheet or the tracker's comments. It protects every team, including you.</li>
+        <li><b>Publish the calendar.</b> One shared content calendar (Sheet or Notion) that every team lead can see, with the week's deadlines colour-coded by team.</li>
+      </ul>
+      <div class="prompt"><span class="lbl">Copy this prompt</span><button type="button">Copy</button><p class="txt">This is our content calendar for October (paste). Find dependency clashes: design or video due before writing is finished, approvals scheduled on weekends or on the executive's travel days, and more than two deliverables landing on one team on the same day. Suggest a corrected schedule and list who needs to be told.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 16 -->
+<section class="slide" id="s16" aria-label="Slide 16 of 24">
+  <header class="chrome"><span class="tab"><i></i>Pillar 3 · Coordination &amp; Content Support</span><span class="idx">16 / 24</span></header>
+  <div class="head">
+    <h2>You are the <span class="hl">signal,</span> not the noise.</h2>
+    <p class="jd">From your JD — <b>“Ensure smooth communication between departments and leadership.”</b></p>
+  </div>
+  <div class="cols">
+    <div class="stack">
+      <ul class="list">
+        <li><b>Upward — the weekly leadership brief.</b> One page, same format every week: Wins · Risks · Decisions needed · Next week. Claude drafts it from the tracker export and the week's minutes; you make it true.</li>
+        <li><b>Downward — decisions travel within 24 hours.</b> Every leadership decision becomes a short “what changes for you” note to the teams it affects.</li>
+        <li><b>Chat hygiene.</b> One channel per project; AI summarises long threads at the end of the day; every decision is restated in writing where it was made.</li>
+        <li><b>Escalation template.</b> What's the issue · impact · what I've tried · what I need · by when. Five lines, no drama.</li>
+      </ul>
+    </div>
+    <div class="stack">
+      <div class="prompt"><span class="lbl">Copy this prompt</span><button type="button">Copy</button><p class="txt">From this week's minutes and the tracker export (paste both), write the weekly leadership brief:
+— Wins: three, one line each
+— Risks: three, each with an owner and a proposed fix
+— Decisions needed: each with a deadline and what happens if it slips
+— Next week: the five dates that matter
+One page. Neutral tone, no adjectives. Flag anything where the two sources disagree.</p></div>
+      <div class="note"><b>Trust test:</b> if leadership could read the brief without you in the room and still know exactly what to do, it's finished.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 17 -->
+<section class="slide" id="s17" aria-label="Slide 17 of 24">
+  <header class="chrome"><span class="tab"><i></i>Pillar 4 · Operations &amp; Process Support</span><span class="idx">17 / 24</span></header>
+  <div class="head">
+    <h2>Clean numbers every month, <span class="hl">without the dread.</span></h2>
+    <p class="jd">From your JD — <b>“Assist in tracking expenses, invoices, basic budgets, and operational records.”</b></p>
+  </div>
+  <div class="cols">
+    <ol class="steps">
+      <li><b class="n">1</b><span><b>Capture.</b> Receipts go to one Drive folder (photo, auto-OCR) or an expense tool — Zoho Expense or Expensify read the amount, date and vendor for you.</span></li>
+      <li><b class="n">2</b><span><b>Track.</b> Google Sheets + Gemini: “Build a monthly tracker with categories, budget vs actual and a variance column.” Ask it to explain any formula you inherit.</span></li>
+      <li><b class="n">3</b><span><b>Reconcile monthly.</b> Statement against tracker; Gemini flags what's missing or duplicated.</span></li>
+      <li><b class="n">4</b><span><b>Invoice register.</b> Vendor · invoice no. · amount · due date · status (Received / Approved / Paid) with a reminder three days before each due date.</span></li>
+    </ol>
+    <div class="stack">
+      <div class="prompt"><span class="lbl">In Sheets · Gemini</span><button type="button">Copy</button><p class="txt">Compare Sheet1 (bank statement export) with Sheet2 (expense tracker). List: entries that appear in one but not the other, possible duplicates (same amount within 3 days), and any expense over 25,000 without an invoice number. Put the results in a new tab with a one-line explanation per row.</p></div>
+      <div class="note"><b>Where financial data lives:</b> inside company Workspace tools and approved expense software only — never pasted into a consumer chat app. Account numbers, card details and bank logins never go into any AI tool (slide 21).</div>
+    </div>
+  </div>
+</section>
+
+<!-- 18 -->
+<section class="slide" id="s18" aria-label="Slide 18 of 24">
+  <header class="chrome"><span class="tab"><i></i>Pillar 4 · Operations &amp; Process Support</span><span class="idx">18 / 24</span></header>
+  <div class="head">
+    <h2>Anyone can find any file in <span class="hl">under 30 seconds.</span></h2>
+    <p class="jd">From your JD — <b>“Maintain structured digital filing systems and documentation.”</b></p>
+  </div>
+  <div class="cols even">
+    <div class="stack">
+      <div class="doc">
+        <div class="dh"><b>Shared drive structure</b><span>example</span></div>
+        <div class="mono" style="line-height:1.7">01 Leadership<br>02 SOPs &amp; Policies<br>03 Content &amp; Creative<br>04 Finance &amp; Admin<br>05 HR<br>06 Projects<br>07 Meetings &amp; Minutes<br>99 Archive</div>
+      </div>
+      <div class="doc">
+        <div class="dh"><b>Naming convention</b><span>date first, version last</span></div>
+        <div class="mono">YYYY-MM-DD_Project_Document_v01<br>2026-09-11_Q4-Content-Plan_Brief_v02</div>
+      </div>
+    </div>
+    <div class="stack">
+      <ul class="list">
+        <li><b>One owner per folder.</b> Shared drives, not personal drives — files survive people leaving.</li>
+        <li><b>“Final” is not a version.</b> Use v01, v02; the latest lives at the top level, older versions in a sub-folder.</li>
+        <li><b>Archive quarterly.</b> Anything untouched for six months moves to 99 Archive. Nothing is deleted without leadership's say.</li>
+        <li><b>Let AI do the finding.</b> Drive's AI search understands “the vendor contract we signed in March”; Gemini in Drive summarises a whole folder; NotebookLM answers questions across a set of files.</li>
+        <li><b>Documentation lives in a wiki.</b> Notion (or a Docs index page) as the “how we do things here” front door, linking to every SOP.</li>
+      </ul>
+      <div class="prompt"><span class="lbl">Copy this prompt</span><button type="button">Copy</button><p class="txt">Write a one-page filing SOP for our shared drive using this structure (paste folder list) and naming convention (paste). Include: where each document type goes, how versions work, who can create top-level folders, and a 5-item checklist before anyone shares a file externally.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 19 -->
+<section class="slide" id="s19" aria-label="Slide 19 of 24">
+  <header class="chrome"><span class="tab"><i></i>Pillar 4 · Operations &amp; Process Support</span><span class="idx">19 / 24</span></header>
+  <div class="head">
+    <h2>Research you can <span class="hl">defend in the room.</span></h2>
+    <p class="jd">From your JD — <b>“Support leadership with research, data collection, and report preparation.”</b></p>
+  </div>
+  <div class="cols wide-left">
+    <div class="cards">
+      <div class="card"><div class="tool"><h4>Perplexity</h4><small>Questions with sources</small></div><p>Ask for “recent, cited, with dates”. Read the sources it links, not just the answer.</p></div>
+      <div class="card"><div class="tool"><h4>Claude / ChatGPT deep research</h4><small>Full briefs in minutes</small></div><p>A structured brief with sources in about ten minutes. Then verify the five facts that matter most yourself.</p></div>
+      <div class="card"><div class="tool"><h4>NotebookLM</h4><small>Your own reports</small></div><p>Upload the reports you've been given; every answer points to the page. Nothing invented from outside the files.</p></div>
+      <div class="card"><div class="tool"><h4>Sheets + Gemini</h4><small>Data collection</small></div><p>Clean messy exports, build the chart, ask “what's the trend and what's the outlier?”</p></div>
+    </div>
+    <div class="stack">
+      <div class="rulebox"><b>The verification rule:</b> two sources for any number that reaches leadership, and a date on every figure. If you can't find a second source, say so in the report.</div>
+      <div class="rulebox"><b>Report skeleton:</b> Question · Answer in one paragraph · Evidence (3–5 points with sources) · Options · Recommendation · What we're unsure about.</div>
+      <div class="prompt"><span class="lbl">Copy this prompt</span><button type="button">Copy</button><p class="txt">Research [topic] for a CEO briefing. Give me: a five-line answer, five key facts each with a source link and date, three options with pros and cons, and a short list of what you are unsure about. Prefer sources from the last 12 months. Do not invent figures — if a number isn't sourced, leave it out.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 20 -->
+<section class="slide" id="s20" aria-label="Slide 20 of 24">
+  <header class="chrome"><span class="tab"><i></i>Pillar 5 · Problem Solving &amp; Ownership</span><span class="idx">20 / 24</span></header>
+  <div class="head">
+    <h2>Bring <span class="hl">solutions,</span> not just problems.</h2>
+    <p class="jd">From your JD — <b>“Actively identify gaps, delays, or issues and propose practical solutions. Handle tasks independently with minimal supervision. Prioritise work effectively in a fast-paced environment and meet deadlines consistently.”</b></p>
+  </div>
+  <div class="cols">
+    <div class="stack">
+      <div class="doc">
+        <div class="dh"><b>The gap → proposal habit</b><span>five lines, every time</span></div>
+        <table><tr><td style="width:34%"><b>Issue</b></td><td>Design deliverables slipped twice this month</td></tr>
+          <tr><td><b>Cause</b></td><td>Briefs arrive without final copy</td></tr>
+          <tr><td><b>Options</b></td><td>A: copy sign-off before design starts · B: a shared brief template</td></tr>
+          <tr><td><b>Recommendation</b></td><td>Both — template this week, sign-off rule from Monday</td></tr>
+          <tr><td><b>I need</b></td><td>Your OK to make it the rule</td></tr></table>
+      </div>
+      <div class="rulebox"><b>AI as a thinking partner:</b> “Give me five possible causes.” · “Run a pre-mortem: how could this plan fail?” · “What would a COO ask about this?” · “Argue against my recommendation.”</div>
+    </div>
+    <div class="stack">
+      <ul class="list">
+        <li><b>Prioritise every morning.</b> Paste the task list → AI sorts by urgency and impact → you confirm the top three → block time for them in the calendar before anything else lands.</li>
+        <li><b>Deadlines have checkpoints.</b> Every task gets a due date and a T-2 day check in the tracker. Slippage is caught two days early, not on the day.</li>
+        <li><b>Own it end to end.</b> Independent means you don't wait to be asked — you report what you did, what's next and what you need.</li>
+      </ul>
+      <div class="prompt"><span class="lbl">Copy this prompt</span><button type="button">Copy</button><p class="txt">Here is my task list for today with deadlines and who asked (paste). Sort it into: Do now · Schedule · Delegate or ask · Drop. Then give me a plan for the next four hours in 30-minute blocks with the top three first, and tell me what I should say no to and how.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 21 -->
+<section class="slide" id="s21" aria-label="Slide 21 of 24">
+  <header class="chrome"><span class="tab"><i></i>Pillar 6 · Confidentiality &amp; Professionalism</span><span class="idx">21 / 24</span></header>
+  <div class="head">
+    <h2>Trust is the job. <span class="hl">AI must never cost you it.</span></h2>
+    <p class="jd">From your JD — <b>“Handle sensitive information with the highest level of confidentiality and integrity. Represent leadership professionally in internal and external communication.”</b></p>
+  </div>
+  <div class="cols even">
+    <div class="stack">
+      <div class="doc" style="border-left:4px solid var(--bad)">
+        <div class="dh"><b>Never paste into any AI tool</b><span>no exceptions</span></div>
+        <ul class="list">
+          <li>Passwords, logins, one-time codes</li>
+          <li>Bank, card or account numbers</li>
+          <li>ID documents, passports, personal addresses</li>
+          <li>Salaries and personal employee data</li>
+          <li>Unreleased financial results, contracts under negotiation</li>
+          <li>Legal or HR cases; anything marked confidential</li>
+        </ul>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="doc" style="border-left:4px solid var(--ok)">
+        <div class="dh"><b>Always</b><span>the habits that keep you safe</span></div>
+        <ul class="list">
+          <li>Use company-approved accounts — Gemini in Workspace, Claude or ChatGPT Team/Enterprise — which keep data out of model training</li>
+          <li>Anonymise: “the vendor”, “Employee A”, “Project X”</li>
+          <li>Check data-retention and sharing settings once a quarter</li>
+          <li>Keep transcripts and summaries inside the company workspace; ask before recording anyone</li>
+        </ul>
+      </div>
+      <div class="rulebox"><b>Representing leadership:</b> their voice, not yours — keep a tone guide with three sample emails in a Claude Project or Gemini. When in doubt, formal and brief. Never commit leadership to a date or decision by email without checking first.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 22 -->
+<section class="slide" id="s22" aria-label="Slide 22 of 24">
+  <header class="chrome"><span class="tab"><i></i>Core skills · Remote work &amp; communication</span><span class="idx">22 / 24</span></header>
+  <div class="head">
+    <h2>Remote means written. Make your writing <span class="hl">effortless to read.</span></h2>
+    <p class="jd">From your JD — <b>“Excellent written and verbal communication in English (mandatory) … confident in handling responsibilities in a fast-paced, remote work environment … Experience in remote work environments is an added advantage.”</b></p>
+  </div>
+  <div class="cols even">
+    <div class="stack">
+      <ul class="list">
+        <li><b>Async first.</b> A written update beats a meeting. Daily end-of-day note to the executive: Done · Tomorrow · Blocked · Need. Loom for anything visual.</li>
+        <li><b>Time zones are stated, never assumed.</b> Both times in every message; scheduling links instead of back-and-forth; protect the executive's deep-work hours.</li>
+        <li><b>English that lands.</b> Short sentences. One ask per message. Grammarly for correctness; Claude for tone — “confident and warm, British English, under 80 words”. Read it aloud once before sending.</li>
+        <li><b>Verbal confidence.</b> Rehearse a difficult call with ChatGPT voice mode: “Play a demanding vendor; I'll negotiate a new delivery date.”</li>
+        <li><b>Presence on camera.</b> Camera on for leadership meetings, agenda shared, close every call with actions and owners.</li>
+      </ul>
+    </div>
+    <div class="stack">
+      <div class="doc">
+        <div class="dh"><b>End-of-day note</b><span>17:30 · to the executive</span></div>
+        <div class="small" style="line-height:1.6"><b>Done:</b> minutes circulated; vendor chased; Q4 offsite venue shortlisted (3)<br><b>Tomorrow:</b> policy draft to HR; board deck v2<br><b>Blocked:</b> Testing waiting on staging access — asked Dev lead<br><b>Need:</b> your pick of offsite venue by Thursday</div>
+      </div>
+      <div class="prompt"><span class="lbl">Copy this prompt</span><button type="button">Copy</button><p class="txt">Rewrite this message for a senior leader who reads on a phone between meetings: under 80 words, the ask in the first line, one clear next step, warm but confident, British English. Keep all the facts. Message: [paste]</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 23 -->
+<section class="slide" id="s23" aria-label="Slide 23 of 24">
+  <header class="chrome"><span class="tab"><i></i>Putting it together</span><span class="idx">23 / 24</span></header>
+  <div class="head">
+    <h2>A day that runs itself — <span class="hl">and a month to get there.</span></h2>
+    <p class="lede">The routine on the left is the job at full strength. The plan on the right builds it one week at a time.</p>
+  </div>
+  <div class="cols even">
+    <div class="doc">
+      <div class="dh"><b>The daily routine</b><span>IST · adjust for your executive's zone</span></div>
+      <ul class="timeline" style="list-style:none;padding:0;margin:0">
+        <li><span class="t">08:30</span><span><b>Inbox pass one</b> with Gemini's summary · calendar check · today's top three</span></li>
+        <li><span class="t">09:00</span><span><b>Executive's daily brief</b> — Claude drafts from calendar and open actions; you send</span></li>
+        <li><span class="t">09:30</span><span><b>Meetings</b> with Zoom AI Companion · minutes out within 15 minutes of each</span></li>
+        <li><span class="t">13:30</span><span><b>Inbox pass two</b> · chase the follow-ups due today</span></li>
+        <li><span class="t">14:00</span><span><b>Deep work</b> — SOPs, documents, the tracker, research</span></li>
+        <li><span class="t">16:30</span><span><b>Team check-ins</b> · approvals · tomorrow's dependencies</span></li>
+        <li><span class="t">17:30</span><span><b>End-of-day note</b> to leadership · inbox pass three · tomorrow planned</span></li>
+      </ul>
+    </div>
+    <div class="stack">
+      <ol class="steps">
+        <li><b class="n">W1</b><span><b>Foundations.</b> Gemini in Gmail, Docs, Sheets, Calendar. Set up the drive structure and naming convention. Write your first three prompts down.</span></li>
+        <li><b class="n">W2</b><span><b>Meetings.</b> Zoom AI Companion on; minutes template in Claude; the follow-up system running for every meeting.</span></li>
+        <li><b class="n">W3</b><span><b>Process.</b> First SOP with Scribe + Claude; first Loom training video; the SOP register.</span></li>
+        <li><b class="n">W4</b><span><b>Coordination.</b> The delivery board live for all eight teams; two automations; the first weekly leadership brief.</span></li>
+      </ol>
+      <div class="note"><b>After 30 days:</b> keep a personal prompt library, and once a month write down which tasks got faster and which still need you. That list is your next month's plan.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 24 -->
+<section class="slide" id="s24" aria-label="Slide 24 of 24">
+  <header class="chrome"><span class="tab"><i></i>Quick reference</span><span class="idx">24 / 24</span></header>
+  <div class="head">
+    <h2>Task → tool → <span class="hl">first move.</span></h2>
+  </div>
+  <div class="cols wide-left">
+    <div class="doc">
+      <table class="ref">
+        <tr><th>Task</th><th>Tool</th><th>First move</th></tr>
+        <tr><td>Calendar &amp; scheduling</td><td>Google Calendar + Gemini · Reclaim · Calendly</td><td>“Find a slot for … mornings IST”</td></tr>
+        <tr><td>Minutes &amp; action points</td><td>Zoom AI Companion → Claude</td><td>transcript → minutes template</td></tr>
+        <tr><td>Documents &amp; reports</td><td>Claude · Docs / Sheets + Gemini</td><td>“Summarise for the CEO in 60 seconds”</td></tr>
+        <tr><td>Presentations</td><td>Claude outline → Gamma / Slides</td><td>one line per slide first</td></tr>
+        <tr><td>SOPs &amp; policies</td><td>Scribe / Tango → Claude → Docs</td><td>capture · structure · register</td></tr>
+        <tr><td>Training videos</td><td>Loom · Descript · HeyGen</td><td>one process, under five minutes</td></tr>
+        <tr><td>Team coordination</td><td>ClickUp / Asana / Notion</td><td>one board · Mon / Wed / Fri rhythm</td></tr>
+        <tr><td>Expenses &amp; invoices</td><td>Sheets + Gemini · Zoho Expense</td><td>capture · track · reconcile monthly</td></tr>
+        <tr><td>Research</td><td>Perplexity · NotebookLM · Claude</td><td>two sources per number</td></tr>
+        <tr><td>Email</td><td>Gmail + Gemini · Grammarly · Claude</td><td>three passes · draft · review · send</td></tr>
+      </table>
+    </div>
+    <div class="stack" style="justify-content:space-between">
+      <p class="close">AI drafts.<br>You decide.<br>That is what makes you <span class="hl">indispensable.</span></p>
+      <div class="note"><b>Keep this deck.</b> Come back to it after your first 30 days and tick off what is now routine. Press <span class="kbd">P</span> or use your browser's print to save it as a PDF.</div>
+    </div>
+  </div>
+</section>
+
+  <div class="foot"><b>The AI-Powered Executive Assistant</b> · built from the EA job description</div>
+  <div class="nav" aria-label="Slide navigation">
+    <button type="button" id="prev" aria-label="Previous slide"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 2 4 7l5 5"/></svg></button>
+    <button type="button" id="next" aria-label="Next slide"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 2 5 5-5 5"/></svg></button>
+  </div>
+  <div class="seg" id="seg" aria-label="Slide progress"></div>
+</div>
+</div>
+
+<script>
+(function(){
+  const deck=document.getElementById('deck');
+  const slides=Array.from(document.querySelectorAll('.slide'));
+  const seg=document.getElementById('seg');
+  let i=0;
+
+  function fit(){
+    const s=Math.min(window.innerWidth/1280, window.innerHeight/720);
+    deck.style.transform='scale('+s+')';
+  }
+  function paint(){
+    seg.querySelectorAll('button').forEach((b,k)=>{b.classList.toggle('done',k<i);b.classList.toggle('now',k===i);});
+  }
+  function go(n){
+    n=Math.max(0,Math.min(slides.length-1,n));
+    slides[i].classList.remove('is-active');
+    i=n;
+    slides[i].classList.add('is-active');
+    paint();
+    try{history.replaceState(null,'','#s'+(i+1));}catch(e){}
+  }
+  slides.forEach((s,k)=>{
+    const b=document.createElement('button');
+    b.type='button'; b.setAttribute('aria-label','Go to slide '+(k+1));
+    b.addEventListener('click',()=>go(k));
+    seg.appendChild(b);
+  });
+  document.getElementById('prev').addEventListener('click',()=>go(i-1));
+  document.getElementById('next').addEventListener('click',()=>go(i+1));
+  document.addEventListener('keydown',e=>{
+    if(e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+    switch(e.key){
+      case 'ArrowRight': case ' ': case 'PageDown': case 'ArrowDown': e.preventDefault(); go(i+1); break;
+      case 'ArrowLeft': case 'PageUp': case 'ArrowUp': e.preventDefault(); go(i-1); break;
+      case 'Home': go(0); break;
+      case 'End': go(slides.length-1); break;
+      case 'f': case 'F': (document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()).catch(()=>{}); break;
+      case 'p': case 'P': window.print(); break;
+    }
+  });
+  let tx=null;
+  document.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;},{passive:true});
+  document.addEventListener('touchend',e=>{
+    if(tx===null) return; const dx=e.changedTouches[0].clientX-tx; tx=null;
+    if(Math.abs(dx)>50) go(dx<0?i+1:i-1);
+  },{passive:true});
+  document.querySelectorAll('.prompt').forEach(p=>{
+    const b=p.querySelector('button'), t=p.querySelector('.txt'); if(!b||!t) return;
+    b.addEventListener('click',async()=>{
+      const text=t.innerText;
+      try{ await navigator.clipboard.writeText(text); b.textContent='Copied'; }
+      catch(err){
+        const r=document.createRange(); r.selectNodeContents(t); const s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
+        b.textContent='Selected — press Ctrl+C';
+      }
+      setTimeout(()=>{b.textContent='Copy';},1800);
+    });
+  });
+  const m=(location.hash||'').match(/^#s(\d+)$/);
+  if(m){ const n=parseInt(m[1],10)-1; if(n>=0&&n<slides.length){ slides[0].classList.remove('is-active'); i=n; slides[i].classList.add('is-active'); } }
+  paint(); fit();
+  window.addEventListener('resize',fit);
+})();
+</script>
